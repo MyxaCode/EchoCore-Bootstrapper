@@ -161,10 +161,23 @@ namespace EchoCore.Bootstrapper
 
         private static void Launch(string folder, string executable, IEnumerable<string> arguments)
         {
+            var path = Path.Combine(folder, executable);
+            var joined = string.Join(" ", arguments.Select(Quote));
+            if (MediumIntegrity.IsHigh())
+            {
+                try
+                {
+                    MediumIntegrity.Start(path, Quote(path) + " " + joined, folder);
+                    return;
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                }
+            }
             var info = new ProcessStartInfo
             {
-                FileName = Path.Combine(folder, executable),
-                Arguments = string.Join(" ", arguments.Select(Quote)),
+                FileName = path,
+                Arguments = joined,
                 WorkingDirectory = folder,
                 UseShellExecute = false,
             };
