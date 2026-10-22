@@ -33,7 +33,7 @@ namespace EchoCore.Bootstrapper
             _window = window;
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls13;
             _http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-            _http.DefaultRequestHeaders.UserAgent.ParseAdd("EchoCoreBootstrapper/1.0");
+            _http.DefaultRequestHeaders.UserAgent.ParseAdd("EchoCoreBootstrapper/1.1");
         }
 
         public async Task RunAsync(LaunchRequest request)
@@ -45,10 +45,10 @@ namespace EchoCore.Bootstrapper
             switch (request.Kind)
             {
                 case LaunchKind.Player:
-                    Launch(await EnsurePackageAsync("player", manifest), PlayerExecutable, request.Arguments);
+                    Launch(await EnsurePackageAsync("player" + request.Year, manifest), PlayerExecutable, request.Arguments);
                     break;
                 case LaunchKind.Studio:
-                    Launch(await EnsurePackageAsync("studio", manifest), StudioExecutable, request.Arguments);
+                    Launch(await EnsurePackageAsync("studio" + request.Year, manifest), StudioExecutable, request.Arguments);
                     break;
                 default:
                     await EnsurePackageAsync("player", manifest);
@@ -74,14 +74,17 @@ namespace EchoCore.Bootstrapper
 
         private async Task<string> EnsurePackageAsync(string name, Dictionary<string, Package> manifest)
         {
+            var year = name.Substring(6);
             if (!manifest.TryGetValue(name, out var package))
-                throw new InvalidOperationException("The server did not offer the " + name + " files.");
+                throw new InvalidOperationException(year.Length > 0
+                    ? "The " + year + " client is not available yet."
+                    : "The server did not offer the " + name + " files.");
 
             var folder = Path.Combine(VersionsRoot, name + "-" + package.version);
             if (File.Exists(Path.Combine(folder, ".complete")))
                 return folder;
 
-            var title = name == "player" ? "EchoCore" : "EchoCore Studio";
+            var title = (name.StartsWith("player") ? "EchoCore" : "EchoCore Studio") + (year.Length > 0 ? " " + year : string.Empty);
             var archive = Path.Combine(VersionsRoot, package.file + ".download");
             await DownloadAsync(SetupUrl + package.file, archive, package.size, "Downloading " + title + "...");
 

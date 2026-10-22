@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace EchoCore.Bootstrapper
@@ -15,6 +16,7 @@ namespace EchoCore.Bootstrapper
     internal sealed class LaunchRequest
     {
         public LaunchKind Kind { get; private set; }
+        public string Year { get; private set; } = string.Empty;
         public List<string> Arguments { get; } = new List<string>();
 
         public static LaunchRequest Parse(string[] args)
@@ -39,21 +41,34 @@ namespace EchoCore.Bootstrapper
             if (first.StartsWith("echocore-player:", StringComparison.OrdinalIgnoreCase))
             {
                 request.Kind = LaunchKind.Player;
-                request.Arguments.AddRange(PlayerArguments(Uri.UnescapeDataString(first.Substring("echocore-player:".Length))));
+                request.Arguments.AddRange(PlayerArguments(Uri.UnescapeDataString(first.Substring("echocore-player:".Length)), out var year));
+                request.Year = year;
                 return request;
             }
 
             if (first.StartsWith("echocore-studio:", StringComparison.OrdinalIgnoreCase))
             {
                 request.Kind = LaunchKind.Studio;
-                request.Arguments.AddRange(Split(Uri.UnescapeDataString(first.Substring("echocore-studio:".Length))));
+                var arguments = Split(Uri.UnescapeDataString(first.Substring("echocore-studio:".Length)));
+                if (arguments.Count > 0 && arguments[0].StartsWith("year:", StringComparison.OrdinalIgnoreCase))
+                {
+                    request.Year = ClientYear(arguments[0].Substring("year:".Length));
+                    arguments.RemoveAt(0);
+                }
+                request.Arguments.AddRange(arguments);
                 return request;
             }
 
             return request;
         }
 
-        private static IEnumerable<string> PlayerArguments(string payload)
+        private static string ClientYear(string clientVersion)
+        {
+            var digits = new string(clientVersion.TakeWhile(char.IsDigit).ToArray());
+            return digits.Length == 4 && digits != "2021" ? digits : string.Empty;
+        }
+
+        private static IEnumerable<string> PlayerArguments(string payload, out string year)
         {
             var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var part in payload.Split('+'))
@@ -66,12 +81,14 @@ namespace EchoCore.Bootstrapper
             if (!fields.TryGetValue("gameinfo", out var ticket) || !fields.TryGetValue("placelauncherurl", out var placeLauncher))
                 throw new InvalidOperationException("The link from the website is incomplete. Press Play again.");
 
+            year = fields.TryGetValue("clientversion", out var clientVersion) ? ClientYear(clientVersion) : string.Empty;
+
             var launcherUri = new Uri(placeLauncher);
             var negotiate = launcherUri.GetLeftPart(UriPartial.Authority) + "/Login/Negotiate.ashx";
             return new[] { "-a", negotiate, "-t", ticket, "-j", placeLauncher };
         }
 
-        private static IEnumerable<string> Split(string commandLine)
+        private static List<string> Split(string commandLine)
         {
             var result = new List<string>();
             var current = new StringBuilder();
