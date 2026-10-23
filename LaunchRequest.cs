@@ -35,6 +35,8 @@ namespace EchoCore.Bootstrapper
             if (first == "--studio")
             {
                 request.Kind = LaunchKind.Studio;
+                if (args.Length > 1)
+                    request.Year = ClientYear(args[1]);
                 return request;
             }
 

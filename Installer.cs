@@ -54,7 +54,7 @@ namespace EchoCore.Bootstrapper
                     await EnsurePackageAsync("player", manifest);
                     await EnsurePackageAsync("studio", manifest);
                     InstallSelf();
-                    Register();
+                    Register(manifest);
                     _window.ShowMessage("EchoCore is installed. Press Play on www.echocr.xyz to join a game.");
                     break;
             }
@@ -62,7 +62,11 @@ namespace EchoCore.Bootstrapper
             if (request.Kind != LaunchKind.Install && !File.Exists(InstalledBootstrapper))
             {
                 InstallSelf();
-                Register();
+                Register(manifest);
+            }
+            else if (request.Kind != LaunchKind.Install)
+            {
+                CreateStudioShortcuts(manifest);
             }
         }
 
@@ -203,7 +207,7 @@ namespace EchoCore.Bootstrapper
             File.Copy(current, InstalledBootstrapper, true);
         }
 
-        private static void Register()
+        private static void Register(Dictionary<string, Package> manifest)
         {
             var command = "\"" + InstalledBootstrapper + "\" \"%1\"";
             RegisterProtocol("echocore-player", "EchoCore Player", command);
@@ -220,7 +224,33 @@ namespace EchoCore.Bootstrapper
                 key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
             }
 
-            CreateShortcut("EchoCore Studio", "--studio");
+            CreateShortcut(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "EchoCore Studio", "--studio");
+            CreateStudioShortcuts(manifest);
+        }
+
+        private static string StudioShortcutName(string year)
+        {
+            return "EchoCore Studio" + (year.Length > 0 ? " " + year : string.Empty);
+        }
+
+        private static void CreateStudioShortcuts(Dictionary<string, Package> manifest)
+        {
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            using (var key = Registry.CurrentUser.CreateSubKey(@"Software\EchoCore"))
+            {
+                var created = new HashSet<string>(((key.GetValue("DesktopStudios") as string) ?? string.Empty)
+                    .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries));
+                foreach (var name in manifest.Keys.Where(k => k.StartsWith("studio", StringComparison.Ordinal)).OrderBy(k => k, StringComparer.Ordinal))
+                {
+                    var year = name.Substring("studio".Length);
+                    if (year.Length > 0 && (year.Length != 4 || !year.All(char.IsDigit)))
+                        continue;
+                    if (!created.Add(name))
+                        continue;
+                    CreateShortcut(desktop, StudioShortcutName(year), year.Length > 0 ? "--studio " + year : "--studio");
+                }
+                key.SetValue("DesktopStudios", string.Join(",", created.OrderBy(n => n, StringComparer.Ordinal)));
+            }
         }
 
         private static void RegisterProtocol(string scheme, string title, string command)
@@ -236,10 +266,9 @@ namespace EchoCore.Bootstrapper
             }
         }
 
-        private static void CreateShortcut(string name, string arguments)
+        private static void CreateShortcut(string folder, string name, string arguments)
         {
-            var programs = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
-            var path = Path.Combine(programs, name + ".lnk");
+            var path = Path.Combine(folder, name + ".lnk");
             var shellType = Type.GetTypeFromProgID("WScript.Shell");
             if (shellType == null)
                 return;
@@ -260,6 +289,13 @@ namespace EchoCore.Bootstrapper
             var shortcut = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "EchoCore Studio.lnk");
             if (File.Exists(shortcut))
                 File.Delete(shortcut);
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            if (Directory.Exists(desktop))
+            {
+                foreach (var file in Directory.GetFiles(desktop, "EchoCore Studio*.lnk"))
+                    File.Delete(file);
+            }
+            Registry.CurrentUser.DeleteSubKeyTree(@"Software\EchoCore", false);
             if (Directory.Exists(VersionsRoot))
                 Directory.Delete(VersionsRoot, true);
 
