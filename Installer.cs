@@ -36,11 +36,13 @@ namespace EchoCore.Bootstrapper
             _http.DefaultRequestHeaders.UserAgent.ParseAdd("EchoCoreBootstrapper/1.2");
         }
 
-        public async Task RunAsync(LaunchRequest request)
+        public async Task RunAsync(LaunchRequest request, string[] originalArguments)
         {
             Directory.CreateDirectory(VersionsRoot);
             _window.SetStatus("Checking for updates...");
             var manifest = await GetManifestAsync();
+            if(manifest.TryGetValue("bootstrapper",out var update) &&
+                await new SelfUpdater(Root).TryUpdateAsync(_http,update.version,update.file,update.sha256,update.size,originalArguments,_window.SetStatus))return;
 
             switch (request.Kind)
             {
@@ -74,7 +76,7 @@ namespace EchoCore.Bootstrapper
 
         private async Task<Dictionary<string, Package>> GetManifestAsync()
         {
-            var json = await _http.GetStringAsync(SetupUrl + "manifest.json?v=1.2.0");
+            var json = await _http.GetStringAsync(SetupUrl + "manifest.json?v="+System.Reflection.Assembly.GetExecutingAssembly().GetName().Version+"&t="+DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             return new JavaScriptSerializer().Deserialize<Dictionary<string, Package>>(json);
         }
 
@@ -171,7 +173,7 @@ namespace EchoCore.Bootstrapper
         private static int Launch(string folder, string executable, IEnumerable<string> arguments)
         {
             var path = Path.Combine(folder, executable);
-            var joined = string.Join(" ", arguments.Select(Quote));
+            var joined = CommandLine.Join(arguments);
             if (MediumIntegrity.IsHigh())
             {
                 try

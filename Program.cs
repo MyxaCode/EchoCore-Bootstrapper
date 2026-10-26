@@ -9,6 +9,13 @@ namespace EchoCore.Bootstrapper
         [STAThread]
         private static int Main(string[] args)
         {
+            try
+            {
+                var updater=new SelfUpdater(SelfUpdater.DefaultRoot);
+                if(args.Length==2 && args[0]=="--apply-update"){updater.Apply(args[1]);return 0;}
+                if(args.Length==2 && args[0]=="--resume-update")args=updater.Resume(args[1]);
+            }
+            catch(Exception error){MessageBox.Show(error.Message,"EchoCore",MessageBoxButtons.OK,MessageBoxIcon.Error);return 1;}
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
@@ -43,7 +50,7 @@ namespace EchoCore.Bootstrapper
                     try
                     {
                         mutex.WaitOne();
-                        await installer.RunAsync(request);
+                        await installer.RunAsync(request,args);
                     }
                     catch (Exception ex)
                     {

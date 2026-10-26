@@ -9,7 +9,6 @@ using System.Web.Script.Serialization;
 
 namespace EchoCore.Bootstrapper
 {
-    // Audio has no window. The native game controls capture, which starts muted.
     internal static class VoiceWorker
     {
         internal static bool ValidToken(string token)
@@ -63,10 +62,10 @@ namespace EchoCore.Bootstrapper
                     UseShellExecute = false, CreateNoWindow = true
                 };
                 using (var process = Process.Start(info)) { }
-                profile = null; // The audio host consumes and removes the private profile.
+                profile = null;
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is System.ComponentModel.Win32Exception || e is System.Security.SecurityException)
-            { /* Voice failure must not prevent the game from starting. */ }
+            { }
             finally
             {
                 if (profile != null) try { File.Delete(profile); } catch (IOException) { } catch (UnauthorizedAccessException) { }

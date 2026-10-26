@@ -13,7 +13,7 @@
     <Product>EchoCore</Product>
     <AssemblyTitle>EchoCore</AssemblyTitle>
     <Company>EchoCore</Company>
-    <Version>1.2.0</Version>
+    <Version>1.2.1</Version>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <DebugType>none</DebugType>
   </PropertyGroup>
