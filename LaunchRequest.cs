@@ -17,6 +17,7 @@ namespace EchoCore.Bootstrapper
     {
         public LaunchKind Kind { get; private set; }
         public string Year { get; private set; } = string.Empty;
+        public string VoiceToken { get; private set; }
         public List<string> Arguments { get; } = new List<string>();
 
         public static LaunchRequest Parse(string[] args)
@@ -43,8 +44,9 @@ namespace EchoCore.Bootstrapper
             if (first.StartsWith("echocore-player:", StringComparison.OrdinalIgnoreCase))
             {
                 request.Kind = LaunchKind.Player;
-                request.Arguments.AddRange(PlayerArguments(Uri.UnescapeDataString(first.Substring("echocore-player:".Length)), out var year));
+                request.Arguments.AddRange(PlayerArguments(Uri.UnescapeDataString(first.Substring("echocore-player:".Length)), out var year, out var voiceToken));
                 request.Year = year;
+                request.VoiceToken = voiceToken;
                 return request;
             }
 
@@ -70,7 +72,7 @@ namespace EchoCore.Bootstrapper
             return digits.Length == 4 && digits != "2021" ? digits : string.Empty;
         }
 
-        private static IEnumerable<string> PlayerArguments(string payload, out string year)
+        private static IEnumerable<string> PlayerArguments(string payload, out string year, out string voiceToken)
         {
             var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var part in payload.Split('+'))
@@ -84,6 +86,8 @@ namespace EchoCore.Bootstrapper
                 throw new InvalidOperationException("The link from the website is incomplete. Press Play again.");
 
             year = fields.TryGetValue("clientversion", out var clientVersion) ? ClientYear(clientVersion) : string.Empty;
+            voiceToken = clientVersion == "2021M" && fields.TryGetValue("voicetoken", out var supplied) && VoiceWorker.ValidToken(supplied)
+                ? supplied : null;
 
             var launcherUri = new Uri(placeLauncher);
             var negotiate = launcherUri.GetLeftPart(UriPartial.Authority) + "/Login/Negotiate.ashx";

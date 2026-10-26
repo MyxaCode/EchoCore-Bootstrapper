@@ -105,7 +105,7 @@ namespace EchoCore.Bootstrapper
             }
         }
 
-        public static void Start(string application, string commandLine, string directory)
+        public static int Start(string application, string commandLine, string directory)
         {
             if (!OpenProcessToken(Process.GetCurrentProcess().Handle, TokenDuplicate | TokenQuery | TokenAssignPrimary | TokenAdjustDefault, out var token))
                 throw new Win32Exception();
@@ -128,6 +128,7 @@ namespace EchoCore.Bootstrapper
                     throw new Win32Exception();
                 CloseHandle(info.hThread);
                 CloseHandle(info.hProcess);
+                return info.dwProcessId;
             }
             finally
             {

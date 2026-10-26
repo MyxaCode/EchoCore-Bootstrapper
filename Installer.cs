@@ -33,7 +33,7 @@ namespace EchoCore.Bootstrapper
             _window = window;
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls13;
             _http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-            _http.DefaultRequestHeaders.UserAgent.ParseAdd("EchoCoreBootstrapper/1.1");
+            _http.DefaultRequestHeaders.UserAgent.ParseAdd("EchoCoreBootstrapper/1.2");
         }
 
         public async Task RunAsync(LaunchRequest request)
@@ -45,7 +45,9 @@ namespace EchoCore.Bootstrapper
             switch (request.Kind)
             {
                 case LaunchKind.Player:
-                    Launch(await EnsurePackageAsync("player" + request.Year, manifest), PlayerExecutable, request.Arguments);
+                    var playerFolder = await EnsurePackageAsync("player" + request.Year, manifest);
+                    var playerPid = Launch(playerFolder, PlayerExecutable, request.Arguments);
+                    VoiceWorker.Start(playerFolder, playerPid, request.VoiceToken);
                     break;
                 case LaunchKind.Studio:
                     Launch(await EnsurePackageAsync("studio" + request.Year, manifest), StudioExecutable, request.Arguments);
@@ -72,7 +74,7 @@ namespace EchoCore.Bootstrapper
 
         private async Task<Dictionary<string, Package>> GetManifestAsync()
         {
-            var json = await _http.GetStringAsync(SetupUrl + "manifest.json");
+            var json = await _http.GetStringAsync(SetupUrl + "manifest.json?v=1.2.0");
             return new JavaScriptSerializer().Deserialize<Dictionary<string, Package>>(json);
         }
 
@@ -166,7 +168,7 @@ namespace EchoCore.Bootstrapper
             }
         }
 
-        private static void Launch(string folder, string executable, IEnumerable<string> arguments)
+        private static int Launch(string folder, string executable, IEnumerable<string> arguments)
         {
             var path = Path.Combine(folder, executable);
             var joined = string.Join(" ", arguments.Select(Quote));
@@ -174,8 +176,7 @@ namespace EchoCore.Bootstrapper
             {
                 try
                 {
-                    MediumIntegrity.Start(path, Quote(path) + " " + joined, folder);
-                    return;
+                    return MediumIntegrity.Start(path, Quote(path) + " " + joined, folder);
                 }
                 catch (System.ComponentModel.Win32Exception)
                 {
@@ -188,7 +189,8 @@ namespace EchoCore.Bootstrapper
                 WorkingDirectory = folder,
                 UseShellExecute = false,
             };
-            Process.Start(info);
+            using (var process = Process.Start(info))
+                return process.Id;
         }
 
         private static string Quote(string argument)
